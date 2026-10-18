@@ -5,8 +5,7 @@ import os
 app = Flask(__name__)
 
 VERIFY_TOKEN = "cofrinho123"
-# Coloque seu token depois aqui
-ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "SEU_TOKEN_AQUI")
+ACCESS_TOKEN = os.environ.get("WHATSAPP_TOKEN", os.environ.get("ACCESS_TOKEN", ""))
 PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "")
 
 @app.route("/webhook", methods=["GET"])
@@ -20,14 +19,43 @@ def verify():
 
 @app.route("/webhook", methods=["POST"])
 def incoming():
-    data = request.json
-    print(data)
-    # Aqui depois a gente coloca a lógica do cofrinho
+    data = request.get_json()
+    try:
+        entry = data["entry"][0]["changes"][0]["value"]
+        if "messages" in entry:
+            msg = entry["messages"][0]
+            from_number = msg["from"]
+            text = msg["text"]["body"].lower()
+
+            # Lógica simples do Cofrinho
+            if "saldo" in text:
+                resposta = "Seu cofrinho está com R$ 0,00 por enquanto! Me diga 'guardei 10' para começar."
+            elif "guardei" in text or "gastei" in text:
+                resposta = f"Anotado: {text} ✅"
+            else:
+                resposta = "Oi! Sou seu Cofrinho 🐷\nMe diga:\n- guardei 10\n- gastei 5\n- saldo"
+
+            # Envia resposta
+            url = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
+            headers = {
+                "Authorization": f"Bearer {ACCESS_TOKEN}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": from_number,
+                "text": {"body": resposta}
+            }
+            requests.post(url, headers=headers, json=payload)
+
+    except Exception as e:
+        print(f"Erro: {e}")
+    
     return "ok", 200
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
-    return "Cofrinho 24h ON - Webhook ativo!"
+    return "Cofrinho rodando!", 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
