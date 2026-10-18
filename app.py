@@ -4,8 +4,9 @@ import os
 
 app = Flask(__name__)
 
-VERIFY_TOKEN = "cofrinho_verify_2026"
-
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "cofrinho123")
+ACCESS_TOKEN = os.environ.get("WHATSAPP_TOKEN", os.environ.get("ACCESS_TOKEN", ""))
+PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "")
 # Coloque seu token depois aqui
 ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "SEU_TOKEN_AQUI")
 PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "")
