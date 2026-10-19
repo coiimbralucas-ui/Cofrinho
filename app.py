@@ -1,12 +1,16 @@
+import os
 from flask import Flask, request
 import requests
-import os
 
 app = Flask(__name__)
 
-VERIFY_TOKEN = "cofrinho123"
-ACCESS_TOKEN = os.environ.get("WHATSAPP_TOKEN", os.environ.get("ACCESS_TOKEN", ""))
-PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "cofrinho123")
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
+PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Cofrinho online! 🐷", 200
 
 @app.route("/webhook", methods=["GET"])
 def verify():
@@ -14,48 +18,54 @@ def verify():
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
     if mode == "subscribe" and token == VERIFY_TOKEN:
+        print("WEBHOOK VERIFICADO!")
         return challenge, 200
-    return "erro token", 403
+    return "Erro de verificação", 403
 
 @app.route("/webhook", methods=["POST"])
-def incoming():
+def webhook():
     data = request.get_json()
-    try:
-        entry = data["entry"][0]["changes"][0]["value"]
-        if "messages" in entry:
-            msg = entry["messages"][0]
-            from_number = msg["from"]
-            text = msg["text"]["body"].lower()
+    print(f"Dados recebidos: {data}")
 
-            # Lógica simples do Cofrinho
-            if "saldo" in text:
-                resposta = "Seu cofrinho está com R$ 0,00 por enquanto! Me diga 'guardei 10' para começar."
-            elif "guardei" in text or "gastei" in text:
-                resposta = f"Anotado: {text} ✅"
-            else:
-                resposta = "Oi! Sou seu Cofrinho 🐷\nMe diga:\n- guardei 10\n- gastei 5\n- saldo"
+    if data and "entry" in data:
+        for entry in data["entry"]:
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                messages = value.get("messages")
+                if messages:
+                    for msg in messages:
+                        from_number = msg["from"]
+                        text = msg.get("text", {}).get("body", "").lower()
+                        print(f"Mensagem de {from_number}: {text}")
 
-            # Envia resposta
-            url = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
-            headers = {
-                "Authorization": f"Bearer {ACCESS_TOKEN}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "messaging_product": "whatsapp",
-                "to": from_number,
-                "text": {"body": resposta}
-            }
-            requests.post(url, headers=headers, json=payload)
+                        # RESPOSTA DO COFRINHO
+                        if "oi" in text or "cofrinho" in text:
+                            resposta = "Olá! Sou o Cofrinho 🐷💰 Me diga quanto gastou, ex: Gastei 20 com lanche"
+                        elif "gastei" in text or "gasto" in text:
+                            resposta = f"Anotado! ✅ {text} - Quer ver seu resumo hoje?"
+                        else:
+                            resposta = f"Recebi: {text}. Me diga seus gastos que eu anoto!"
 
-    except Exception as e:
-        print(f"Erro: {e}")
-    
-    return "ok", 200
+                        enviar_mensagem(from_number, resposta)
 
-@app.route("/", methods=["GET"])
-def home():
-    return "Cofrinho rodando!", 200
+    return "OK", 200
+
+def enviar_mensagem(to, texto):
+    url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": texto}
+    }
+    print(f"Enviando para {to}: {texto}")
+    r = requests.post(url, headers=headers, json=payload)
+    print(f"Resposta da API: {r.status_code} - {r.text}")
+    return r
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    app.run(host="0.0.0.0", port=10000)
